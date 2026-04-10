@@ -1,0 +1,1678 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>VTT Master - Pen & WASD</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <style>
+    :root {
+      --bg-app: #0f172a;
+      --bg-panel: rgba(15, 23, 42, 0.95);
+      --bg-input: rgba(2, 6, 23, 0.6);
+      --border: rgba(255, 255, 255, 0.15);
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --danger: #ef4444;
+      --success: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --radius: 8px;
+      --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; outline: none; }
+
+    html, body {
+      height: 100%; margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      background: var(--bg-app);
+      color: var(--text-main);
+      font-size: 13px;
+    }
+
+    #app { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+
+    /* LOGIN */
+    #login-overlay {
+      position: absolute; inset: 0; z-index: 200;
+      background: rgba(15, 23, 42, 0.98);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-box {
+      background: var(--bg-panel); border: 1px solid var(--border);
+      padding: 30px; border-radius: 12px; width: 350px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); text-align: center;
+    }
+    .login-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; color: var(--accent); }
+    .mode-btn { width: 100%; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; align-items: center; }
+    .mode-desc { font-size: 11px; color: var(--text-muted); font-weight: normal; margin-top: 4px; }
+
+    /* UI */
+    #toolbar {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      padding: 8px 12px; background: var(--bg-panel); backdrop-filter: blur(10px);
+      border: 1px solid var(--border); border-radius: 50px;
+      display: flex; gap: 8px; align-items: center; z-index: 100; box-shadow: var(--shadow);
+    }
+
+    button, select, input {
+      font-family: inherit; font-size: 12px; color: var(--text-main);
+      border: 1px solid var(--border); background: var(--bg-input);
+      border-radius: 4px; padding: 6px 10px; transition: all 0.2s;
+    }
+    button { cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+    button:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.4); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+    button.icon-btn { width: 30px; padding: 0; font-size: 16px; }
+
+    .divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+    label { display: flex; align-items: center; gap: 6px; color: var(--text-muted); cursor: pointer; }
+    input[type="number"] { width: 50px; text-align: center; }
+
+    #pen-controls { display:none; align-items: center; gap: 8px; }
+
+    #viewport { position: absolute; inset: 0; background: #1a1a1a; background-image: radial-gradient(#333 1px, transparent 1px); background-size: 20px 20px; }
+    canvas#map2d { display: block; width: 100%; height: 100%; touch-action: none; }
+    #three-container { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+
+    #panel-container { position: absolute; top: 16px; right: 16px; bottom: 16px; display: flex; flex-direction: column; align-items: flex-end; pointer-events: none; z-index: 90; }
+    #panel-toggle { pointer-events: auto; width: 40px; height: 40px; border-radius: 50%; margin-bottom: 10px; font-size: 18px; background: var(--bg-panel); border: 1px solid var(--border); }
+    #panel { pointer-events: auto; width: 320px; background: var(--bg-panel); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden; flex: 1; transition: transform 0.3s, opacity 0.3s; }
+    #panel.hidden { transform: translateX(20px); opacity: 0; pointer-events: none; }
+    #panel-content { padding: 16px; overflow-y: auto; flex: 1; }
+
+    h3 { margin: 15px 0 10px 0; color: var(--accent); font-size: 11px; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    .form-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .spread { justify-content: space-between; }
+    .full { width: 100%; }
+
+    .token-item { padding: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; margin-bottom: 6px; cursor: pointer; border: 1px solid transparent; }
+    .token-item:hover { background: rgba(255,255,255,0.08); }
+    .token-item.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.15); }
+    .preview-box { width: 44px; height: 44px; background: #000; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .preview-box img { width: 100%; height: 100%; object-fit: contain; transition: transform 0.3s; }
+
+    #tokenEditor { background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; }
+    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; background: #333; border: 1px solid var(--border); margin-bottom: 10px; display:flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- LOGIN -->
+    <div id="login-overlay">
+      <div class="login-box">
+        <div class="login-title">🎲 VTT Master 2.0</div>
+        <div id="start-menu">
+          <button class="mode-btn primary" onclick="net.startHost()">
+            Criar Nova Sala (Mestre)
+            <span class="mode-desc">Você controla tudo.</span>
+          </button>
+          <div style="margin: 15px 0; font-size:11px; color:var(--text-muted)">— OU —</div>
+          <input id="join-id" type="text" placeholder="Cole o ID da Sala aqui" class="full" style="margin-bottom:10px; text-align:center;">
+          <button class="mode-btn" onclick="net.joinGame()">
+            Entrar na Sala (Jogador)
+            <span class="mode-desc">Conectar ao jogo.</span>
+          </button>
+        </div>
+        <div id="lobby-status" style="display:none; color: var(--success); margin-top:10px;">Conectando...</div>
+      </div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div id="toolbar">
+      <select id="tool" style="width: 130px;">
+        <option value="pan">🖐 Mover / Selecionar</option>
+        <option value="measure">📏 Régua</option>
+        <option value="pen">🖊 Caneta</option>
+      </select>
+
+      <!-- Pen Controls -->
+      <div id="pen-controls">
+        <div class="divider"></div>
+        <input id="penColor" type="color" value="#ff0000" title="Cor da Caneta" style="width:30px; padding:0; height:24px; border:none;"/>
+        <input id="penSize" type="number" min="1" max="50" value="3" title="Espessura" style="width:40px;"/>
+      </div>
+
+      <div class="divider"></div>
+      <button id="btnZoomOut" class="icon-btn">➖</button>
+      <button id="btnZoomIn" class="icon-btn">➕</button>
+      <div class="divider"></div>
+      <label>Grade <input id="gridSize" type="number" value="50" min="10" /></label>
+      <label><input id="snap" type="checkbox" checked /> Snap</label>
+      <div class="divider"></div>
+      <button id="toggle3d">3D</button>
+    </div>
+
+    <!-- VIEWPORT -->
+    <div id="viewport">
+      <canvas id="map2d" tabindex="0"></canvas>
+      <div id="three-container"></div>
+    </div>
+
+    <!-- PANEL -->
+    <div id="panel-container">
+      <button id="panel-toggle">☰</button>
+      <div id="panel">
+        <div id="panel-content">
+          <div class="status-badge" id="netStatus"><span>Offline</span></div>
+
+          <!-- EDITOR -->
+          <div id="tokenEditor" style="display:none;">
+            <div class="form-row spread">
+              <span style="color:#fff; font-weight:bold">Editar Token</span>
+              <button id="edtClose" style="padding:2px 6px; background:transparent;">✕</button>
+            </div>
+            <div class="form-row"><input id="edtLabel" type="text" placeholder="Nome" class="full"/></div>
+
+            <!-- PERMISSÃO -->
+            <div class="form-row" id="ownerRow">
+              <select id="edtOwner" class="full" title="Quem pode mexer?">
+                <option value="">Dono: Mestre (Apenas)</option>
+                <option value="all">Dono: Todos (Público)</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div style="flex:1"><label>Imagem</label><input id="edtImage" type="file" accept="image/*" class="full" style="font-size:10px"/></div>
+              <div class="preview-box"><img id="edtPreview" src="" style="display:none"/></div>
+            </div>
+
+            <div class="form-row spread">
+              <select id="edtShape" class="full">
+                <option value="circle">Círculo</option>
+                <option value="square">Quadrado</option>
+                <option value="image">PNG Original</option>
+              </select>
+            </div>
+            <div class="form-row spread">
+              <label>Tam.<input id="edtRadius" type="number" min="10" /></label>
+              <label>Cor <input id="edtColor" type="color" /></label>
+            </div>
+            <div class="form-row spread">
+              <label>Rot.<input id="edtRotation" type="number" step="45" style="width:40px"/></label>
+              <label>Esc.<input id="edtScale" type="number" step="0.1" style="width:40px"/></label>
+              <button id="edtFlip" title="Inverter Imagem" style="padding:0 8px; font-size:16px;">⇄</button>
+            </div>
+            
+            <!-- ===== LAYERS (Token) ===== -->
+            <div class="form-row spread" style="margin-top:10px; align-items:center">
+              <label style="display:flex; gap:8px; align-items:center; margin:0">
+                <input id="edtUseLayers" type="checkbox" />
+                <span>Modo Layers</span>
+              </label>
+              <small style="color:var(--text-muted)">Ative para empilhar imagens (arma, efeitos, caído, etc.)</small>
+            </div>
+
+            <div id="layersPanel" style="display:none; margin-top:8px; border:1px solid var(--border); border-radius:10px; padding:10px; background:rgba(2,6,23,0.35)">
+              <div class="form-row spread" style="align-items:center">
+                <span style="font-weight:700">Camadas do Token</span>
+                <button id="layerAdd" class="primary" style="padding:6px 10px; font-size:12px">+ Adicionar</button>
+              </div>
+              <div id="layersList" style="display:flex; flex-direction:column; gap:8px; margin-top:10px"></div>
+              <div class="form-row" style="margin-top:8px">
+                <button id="layerQuickProne" style="padding:6px 10px">↧ Caído (toggle)</button>
+                <small style="color:var(--text-muted); margin-left:10px">Cria/ativa uma camada "prone" com rotação de 90°.</small>
+              </div>
+            </div>
+            <!-- ===== END LAYERS ===== -->
+
+            <div class="form-row spread" style="margin-top:10px;">
+              <button id="edtDelete" style="border-color:var(--danger); color:var(--danger); background:transparent">Excluir</button>
+              <button id="edtApply" class="primary">Salvar</button>
+            </div>
+          </div>
+
+          <!-- CRIADOR (Host Only) -->
+          <div id="hostOnlyPanel">
+            <h3>Novo Token</h3>
+            <div id="tokenGenerator">
+              <div class="form-row"><input id="genLabel" type="text" placeholder="Nome" class="full" /></div>
+              <div class="form-row">
+                <select id="genShape" class="full">
+                  <option value="circle">Círculo</option>
+                  <option value="square">Quadrado</option>
+                  <option value="image">PNG Original</option>
+                </select>
+              </div>
+              <div class="form-row spread">
+                <label>Tam. <input id="genRadius" type="number" value="30" /></label>
+                <label>Cor <input id="genColor" type="color" value="#3b82f6" /></label>
+              </div>
+              <div class="form-row align-center">
+                <input id="genImage" type="file" accept="image/*" class="full" style="font-size:10px" />
+                <div class="preview-box" style="margin-left:5px"><img id="genPreview" src="" style="display:none"/></div>
+              </div>
+              <div class="form-row"><button id="genCreate" class="primary full">Criar Token</button></div>
+            </div>
+
+            <h3>Mapa & Desenho</h3>
+            <div class="form-row"><input id="mapFile" type="file" accept="image/*" class="full" /></div>
+            <div class="form-row"><button id="clearDrawings" class="full" style="border-color:var(--danger); color:var(--danger)">Limpar Desenhos</button></div>
+            <div id="mapControls" style="display:none; background:rgba(0,0,0,0.2); padding:8px; border-radius:4px; margin-top:5px;">
+              <div class="form-row spread"><label style="font-size:10px">Zoom</label><input id="mapScale" type="range" min="0.1" max="5" step="0.01" value="1" /></div>
+              <div class="form-row spread"><input id="mapX" type="number" placeholder="X" /><input id="mapY" type="number" placeholder="Y" /><button id="resetMap">⟲</button></div>
+              <button id="clearMap" class="full" style="font-size:11px; margin-top:4px;">Remover Mapa</button>
+            </div>
+          </div>
+
+          <h3>Lista</h3>
+          <div id="tokensList"></div>
+          <hr style="border-color:var(--border)"/>
+          <div class="form-row spread">
+            <button id="export">Salvar</button>
+            <label class="button" style="border:1px solid var(--border); padding:6px; border-radius:4px; cursor:pointer; font-size:11px; background:var(--bg-input);">
+              Carregar <input id="importFile" type="file" style="display:none"/>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIBS -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.151.3/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
+ <script>
+  const canvas = document.getElementById('map2d'), ctx = canvas.getContext('2d', { alpha: false });
+  const viewport = document.getElementById('viewport');
+  let DPR = window.devicePixelRatio || 1;
+
+  const state = {
+    tokens: [],
+    drawings: [],
+    gridSize: 50,
+    pan: { x: 0, y: 0, scale: 1, rot: 0 }, // ✅ rotação da câmera 2D (radianos)
+    map: { img: null, imgSource: null, x: 0, y: 0, scale: 1 },
+    selectedId: null,
+    threeOn: false
+  };
+
+  const imgCache = new Map();
+  let dragging = null, rotating = null, lastMouse = null;
+  let rotateDragStartAngle = 0;
+  let rotateDragStartRot = 0;
+  const ROTATE_SENS = 0.35; // menor = mais lento
+
+  window.addEventListener('blur', ()=>{ if (dragging === 'rotateView') dragging = null; });
+  document.addEventListener('keyup', (e)=>{ if (e.key === 'Control' && dragging === 'rotateView') dragging = null; });
+
+  let measuring = { active: false, start: null, current: null };
+  let drawing = { active: false, currentPath: [] };
+
+  let genImgData = null;
+  let edtImgData = null;
+
+  const keys = { w:false, a:false, s:false, d:false, ArrowUp:false, ArrowLeft:false, ArrowDown:false, ArrowRight:false };
+
+  const ui = {
+    loginOverlay: document.getElementById('login-overlay'), netStatus: document.getElementById('netStatus'),
+    hostOnlyPanel: document.getElementById('hostOnlyPanel'),
+    gridSize: document.getElementById('gridSize'), snap: document.getElementById('snap'),
+    tool: document.getElementById('tool'), penControls: document.getElementById('pen-controls'),
+    penColor: document.getElementById('penColor'), penSize: document.getElementById('penSize'),
+    toggle3d: document.getElementById('toggle3d'), btnZoomIn: document.getElementById('btnZoomIn'), btnZoomOut: document.getElementById('btnZoomOut'),
+    genLabel: document.getElementById('genLabel'), genShape: document.getElementById('genShape'), genRadius: document.getElementById('genRadius'),
+    genColor: document.getElementById('genColor'), genImage: document.getElementById('genImage'), genPreview: document.getElementById('genPreview'), genCreate: document.getElementById('genCreate'),
+    editor: document.getElementById('tokenEditor'), edtLabel: document.getElementById('edtLabel'), edtShape: document.getElementById('edtShape'),
+    edtRadius: document.getElementById('edtRadius'), edtColor: document.getElementById('edtColor'), edtImage: document.getElementById('edtImage'),
+    edtPreview: document.getElementById('edtPreview'), edtRotation: document.getElementById('edtRotation'), edtScale: document.getElementById('edtScale'),
+    edtApply: document.getElementById('edtApply'), edtDelete: document.getElementById('edtDelete'), edtClose: document.getElementById('edtClose'),
+    edtFlip: document.getElementById('edtFlip'), edtOwner: document.getElementById('edtOwner'), ownerRow: document.getElementById('ownerRow'),
+    edtUseLayers: document.getElementById('edtUseLayers'), layersPanel: document.getElementById('layersPanel'), layersList: document.getElementById('layersList'), layerAdd: document.getElementById('layerAdd'), layerQuickProne: document.getElementById('layerQuickProne'),
+    mapFile: document.getElementById('mapFile'), mapControls: document.getElementById('mapControls'), mapScale: document.getElementById('mapScale'),
+    mapX: document.getElementById('mapX'), mapY: document.getElementById('mapY'), resetMap: document.getElementById('resetMap'), clearMap: document.getElementById('clearMap'),
+    clearDrawings: document.getElementById('clearDrawings'),
+    tokensList: document.getElementById('tokensList'), exportBtn: document.getElementById('export'), importFile: document.getElementById('importFile')
+  };
+
+  // --- EXPORT / IMPORT (.json) ---
+  function downloadText(filename, text, mime="application/json") {
+    try {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      // fallback simples
+      prompt("Não consegui baixar automaticamente. Copie o JSON abaixo:", text);
+    }
+  }
+
+  function getExportState() {
+    // Remove referências não-serializáveis (Image) e exporta apenas fontes
+    const safe = JSON.parse(JSON.stringify(state));
+    if (safe.map) {
+      safe.map.img = null;
+      // garante que a imagem do mapa seja salva via imgSource
+      safe.map.imgSource = state.map?.imgSource || safe.map.imgSource || null;
+    }
+    // tokens antigos podem ter só t.img; ok
+    // layers: já são strings/nums/booleans, então serializam
+    return safe;
+  }
+
+  function applyImportedState(safe) {
+    // aplica campos conhecidos com defaults
+    state.tokens = Array.isArray(safe.tokens) ? safe.tokens : [];
+    state.drawings = Array.isArray(safe.drawings) ? safe.drawings : [];
+    state.gridSize = typeof safe.gridSize === 'number' ? safe.gridSize : 50;
+    state.pan = safe.pan && typeof safe.pan === 'object' ? safe.pan : { x:0, y:0, scale:1, rot:0 };
+    state.selectedId = safe.selectedId || null;
+    state.threeOn = !!safe.threeOn;
+
+    // mapa
+    const ms = safe.map && typeof safe.map === 'object' ? safe.map : null;
+    state.map = {
+      img: null,
+      imgSource: ms ? (ms.imgSource || null) : null,
+      x: ms && typeof ms.x === 'number' ? ms.x : 0,
+      y: ms && typeof ms.y === 'number' ? ms.y : 0,
+      scale: ms && typeof ms.scale === 'number' ? ms.scale : 1
+    };
+    if (state.map.imgSource) state.map.img = getImg(state.map.imgSource);
+
+    // garante compatibilidade layers
+    state.tokens.forEach(t=>{ try{ ensureLayers(t); }catch(e){} });
+
+    // atualiza UI/render
+    updateTokensList(); syncThree(); draw();
+    if (net.isHost) net.broadcastFullState();
+  }
+
+  // Botão "Salvar" (export)
+  ui.exportBtn.onclick = () => {
+    const dt = new Date();
+    const pad = (n)=>String(n).padStart(2,'0');
+    const name = `tabletop_${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}_${pad(dt.getHours())}-${pad(dt.getMinutes())}.json`;
+    const payload = {
+      type: "VTT_STATE",
+      version: 1,
+      savedAt: dt.toISOString(),
+      state: getExportState()
+    };
+    downloadText(name, JSON.stringify(payload, null, 2));
+  };
+
+  // Importar .json
+  ui.importFile.onchange = (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        const safe = data && data.type === "VTT_STATE" && data.state ? data.state : data;
+        applyImportedState(safe);
+      } catch (e) {
+        alert("Arquivo JSON inválido ou corrompido.");
+      }
+    };
+    reader.readAsText(file);
+    ev.target.value = '';
+  };
+  // --- END EXPORT / IMPORT ---
+
+
+  // --- REDE (P2P) ---
+  const net = {
+    peer: null, conn: [], isHost: false, myId: null,
+
+    // estado “limpo” (sem Image())
+    getNetState: () => ({
+      tokens: state.tokens,
+      drawings: state.drawings,
+      gridSize: state.gridSize,
+      map: {
+        imgSource: state.map.imgSource || null,
+        x: state.map.x || 0,
+        y: state.map.y || 0,
+        scale: state.map.scale || 1
+      }
+    }),
+
+    broadcastFullState: (exceptId) => {
+      if(!net.isHost) return;
+      const payload = net.getNetState();
+      net.conn.forEach(c => {
+        if (c.peer !== exceptId && c.open) c.send({ type:'FULL_STATE', payload });
+      });
+    },
+
+    startHost: () => {
+      document.getElementById('lobby-status').style.display = 'block';
+      net.isHost = true;
+      net.peer = new Peer(null, { debug: 1 });
+      net.peer.on('open', (id) => {
+        net.myId = id;
+        ui.loginOverlay.style.display = 'none';
+        ui.netStatus.innerHTML = `<span style="color:var(--success)">Mestre (ID: ${id})</span> <button onclick="navigator.clipboard.writeText('${id}')" style="font-size:10px;">Copiar</button>`;
+        net.updateOwnerList();
+      });
+      net.peer.on('connection', (c) => {
+        net.conn.push(c);
+        c.on('open', () => { net.syncToClient(c); net.updateOwnerList(); });
+        c.on('data', (d) => net.handleDataHost(d, c.peer));
+        c.on('close', () => { net.conn = net.conn.filter(x => x !== c); net.updateOwnerList(); });
+      });
+      ui.hostOnlyPanel.style.display = 'block'; ui.ownerRow.style.display = 'flex';
+      ui.gridSize.disabled = false;
+    },
+
+    joinGame: () => {
+      const id = document.getElementById('join-id').value.trim();
+      if (!id) return alert('Cole o ID do Mestre');
+      document.getElementById('lobby-status').style.display = 'block';
+      net.isHost = false;
+      net.peer = new Peer(null, { debug: 1 });
+      net.peer.on('open', (myId) => {
+        net.myId = myId;
+        const conn = net.peer.connect(id);
+        net.conn = [conn];
+        conn.on('open', () => {
+          ui.loginOverlay.style.display = 'none';
+          ui.netStatus.innerHTML = `<span style="color:#fbbf24">Jogador</span>`;
+        });
+        conn.on('data', (d) => net.handleDataClient(d));
+        conn.on('close', () => alert('Mestre desconectou'));
+      });
+      ui.hostOnlyPanel.style.display = 'none'; ui.ownerRow.style.display = 'none';
+      ui.gridSize.disabled = true; ui.snap.disabled = false;
+      ui.edtApply.style.display = 'none'; ui.edtDelete.style.display = 'none';
+    },
+
+    syncToClient: (conn) => {
+      conn.send({ type: 'FULL_STATE', payload: net.getNetState() });
+    },
+
+    broadcast: (data, exceptId) => {
+      if(!net.isHost) return;
+      net.conn.forEach(c => { if (c.peer !== exceptId && c.open) c.send(data); });
+    },
+
+    handleDataHost: (data, senderId) => {
+      if (data.type === 'MOVE') {
+        const t = state.tokens.find(k => k.id === data.id);
+        if (t && (t.owner === 'all' || t.owner === senderId)) {
+          t.x = data.x; t.y = data.y; t.rotation = data.rotation; t.flipX = data.flipX;
+          draw(); syncThree();
+          net.broadcast({ type: 'UPDATE_TOKEN', id: t.id, x: t.x, y: t.y, rotation: t.rotation, flipX: t.flipX }, senderId);
+        }
+      } else if (data.type === 'ADD_DRAWING') {
+        state.drawings.push(data.line);
+        draw();
+        net.broadcast({ type: 'ADD_DRAWING', line: data.line }, senderId);
+      }
+    },
+
+    handleDataClient: (data) => {
+      if (data.type === 'FULL_STATE') {
+        const payload = data.payload;
+
+        if(dragging && typeof dragging === 'object') {
+          state.tokens = payload.tokens.map(t => t.id === dragging.id ? dragging : t);
+        } else {
+          state.tokens = payload.tokens;
+        }
+        state.drawings = payload.drawings || [];
+        state.gridSize = payload.gridSize;
+        ui.gridSize.value = state.gridSize;
+
+        const m = payload.map || { imgSource:null, x:0, y:0, scale:1 };
+        if (state.map.imgSource !== m.imgSource) {
+          state.map = { img: null, imgSource: m.imgSource, x: m.x, y: m.y, scale: m.scale };
+          if (m.imgSource) {
+            const img = new Image();
+            img.src = m.imgSource;
+            img.onload = () => { state.map.img = img; draw(); };
+          }
+        } else {
+          state.map.x = m.x; state.map.y = m.y; state.map.scale = m.scale;
+        }
+
+        updateTokensList(); draw(); syncThree();
+      }
+      else if (data.type === 'UPDATE_TOKEN') {
+        if (dragging && typeof dragging === 'object' && dragging.id === data.id) return;
+        const t = state.tokens.find(k => k.id === data.id);
+        if (t) {
+          t.x = data.x; t.y = data.y; t.rotation = data.rotation; t.flipX = data.flipX;
+          if(typeof t.visualFlip === 'undefined') t.visualFlip = t.flipX?-1:1;
+          draw(); syncThree();
+        }
+      }
+      else if (data.type === 'ADD_DRAWING') {
+        state.drawings.push(data.line);
+        draw();
+      }
+    },
+
+    sendMove: (token) => {
+      const msg = { type: net.isHost ? 'UPDATE_TOKEN' : 'MOVE', id: token.id, x: token.x, y: token.y, rotation: token.rotation, flipX: token.flipX };
+      if (net.isHost) net.broadcast(msg);
+      else if(net.conn[0]) net.conn[0].send(msg);
+    },
+
+    sendDrawing: (line) => {
+      const msg = { type: 'ADD_DRAWING', line: line };
+      if (net.isHost) net.broadcast(msg);
+      else if(net.conn[0]) net.conn[0].send(msg);
+    },
+
+    updateOwnerList: () => {
+      if(!net.isHost) return;
+      const sel = ui.edtOwner;
+      const oldVal = sel.value;
+      sel.innerHTML = `<option value="">Dono: Mestre (Apenas)</option><option value="all">Dono: Todos (Público)</option>`;
+      net.conn.forEach((c, i) => {
+        const opt = document.createElement('option');
+        opt.value = c.peer;
+        opt.innerText = `Dono: Jogador ${i+1} (${c.peer.substr(0,4)}...)`;
+        sel.appendChild(opt);
+      });
+      sel.value = oldVal;
+    }
+  };
+
+  // --- CORE ---
+  function resize() {
+    const rect = viewport.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * DPR);
+    canvas.height = Math.round(rect.height * DPR);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    draw();
+    if (renderer) onThreeResize();
+  }
+  window.addEventListener('resize', resize);
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // ✅ com rotação da câmera
+  function screenToWorld(sx, sy) {
+    const rect = canvas.getBoundingClientRect();
+
+    // tela -> px do canvas
+    const px = (sx - rect.left) * DPR;
+    const py = (sy - rect.top) * DPR;
+
+    // remove pan
+    const vx = px - state.pan.x;
+    const vy = py - state.pan.y;
+
+    // desfaz rotação
+    const c = Math.cos(-state.pan.rot);
+    const s = Math.sin(-state.pan.rot);
+    const rx = vx * c - vy * s;
+    const ry = vx * s + vy * c;
+
+    // desfaz escala
+    return { x: rx / state.pan.scale, y: ry / state.pan.scale };
+  }
+
+  function snap(val) {
+    if (!ui.snap.checked) return val;
+    const gs = state.gridSize * DPR;
+    return Math.round(val / gs) * gs;
+  }
+  function canControl(t) {
+    if (net.isHost) return true;
+    if (t.owner === 'all') return true;
+    if (t.owner === net.myId) return true;
+    return false;
+  }
+
+  function findTokenAt(pos) {
+    return [...state.tokens].reverse().find(t => {
+      const r = t.radius * (t.scale || 1);
+      return Math.abs(pos.x - t.x) < r && Math.abs(pos.y - t.y) < r;
+    });
+  }
+  function getImg(src) {
+    if (imgCache.has(src)) return imgCache.get(src);
+    const img = new Image(); img.crossOrigin = "Anonymous"; img.src = src;
+    imgCache.set(src, null);
+    img.onload = () => { imgCache.set(src, img); draw(); syncThree(); };
+    return null;
+  }
+  function handleImageUpload(file, callback) {
+    if(!file) return;
+    const r = new FileReader();
+    r.onload = (e) => callback(e.target.result);
+    r.readAsDataURL(file);
+  }
+
+  // --- DRAWING ENGINE ---
+  function draw() {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(state.pan.x, state.pan.y);
+    ctx.rotate(state.pan.rot);           // ✅ aplica rotação
+    ctx.scale(state.pan.scale, state.pan.scale);
+
+    // Mapa
+    if (state.map.img) {
+      const w = state.map.img.width * state.map.scale;
+      const h = state.map.img.height * state.map.scale;
+      ctx.drawImage(state.map.img, state.map.x, state.map.y, w, h);
+    }
+
+    // Grade
+    const gs = state.gridSize * DPR;
+    if (gs * state.pan.scale > 4) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1/state.pan.scale;
+
+      // ✅ calcula bounds no mundo considerando rotação
+      // Para simplicidade: desenha grade numa área grande ao redor do centro visível.
+      const viewW = canvas.width / state.pan.scale;
+      const viewH = canvas.height / state.pan.scale;
+      const cx = (-state.pan.x) / state.pan.scale;
+      const cy = (-state.pan.y) / state.pan.scale;
+      const pad = Math.max(viewW, viewH) * 0.8;
+
+      const sx = cx - pad, sy = cy - pad;
+      const ex = cx + viewW + pad, ey = cy + viewH + pad;
+
+      for (let x=Math.floor(sx/gs)*gs; x<ex; x+=gs) { ctx.moveTo(x, sy); ctx.lineTo(x, ey); }
+      for (let y=Math.floor(sy/gs)*gs; y<ey; y+=gs) { ctx.moveTo(sx, y); ctx.lineTo(ex, y); }
+      ctx.stroke();
+    }
+
+    // Desenhos
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const d of state.drawings) {
+      if(!d.points || d.points.length < 2) continue;
+      ctx.beginPath(); ctx.strokeStyle = d.color; ctx.lineWidth = d.width;
+      ctx.moveTo(d.points[0].x, d.points[0].y);
+      for(let i=1; i<d.points.length; i++) ctx.lineTo(d.points[i].x, d.points[i].y);
+      ctx.stroke();
+    }
+
+    // Desenho Atual
+    if (drawing.active && drawing.currentPath.length > 0) {
+      ctx.beginPath(); ctx.strokeStyle = ui.penColor.value; ctx.lineWidth = parseInt(ui.penSize.value);
+      ctx.moveTo(drawing.currentPath[0].x, drawing.currentPath[0].y);
+      for(let i=1; i<drawing.currentPath.length; i++) ctx.lineTo(drawing.currentPath[i].x, drawing.currentPath[i].y);
+      ctx.stroke();
+    }
+
+    // Tokens
+    const sorted = [...state.tokens].sort((a,b) => (a.id === state.selectedId ? 1 : -1));
+    for (const t of sorted) {
+      ensureLayers(t);
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate((t.rotation||0) * Math.PI/180);
+
+      const isSel = state.selectedId === t.id;
+      const scale = t.scale || 1;
+      const currentFlip = typeof t.visualFlip !== 'undefined' ? t.visualFlip : (t.flipX ? -1 : 1);
+      const mine = canControl(t);
+
+
+      if (t.useLayers) {
+        // desenha camadas empilhadas
+        const layers = [...(t.layers||[])].sort((a,b)=> (a.z||0)-(b.z||0));
+        const tokenScale = t.scale || 1;
+        const tokenFlip = typeof t.visualFlip !== 'undefined' ? t.visualFlip : (t.flipX ? -1 : 1);
+
+        for (const L of layers) {
+          if (!L || !L.visible || !L.img) continue;
+          const img = getImg(L.img);
+          if (!img) continue;
+
+          const layerScale = tokenScale * (typeof L.scale === 'number' ? L.scale : 1);
+          const opacity = (typeof L.opacity === 'number') ? L.opacity : 1;
+
+          ctx.save();
+          ctx.globalAlpha = opacity;
+
+          const ox = (L.ox || 0) * DPR;
+          const oy = (L.oy || 0) * DPR;
+          ctx.translate(ox, oy);
+
+          ctx.rotate(((L.rot || 0) * Math.PI/180));
+
+          const layerFlip = (L.flipX ? -1 : 1) * tokenFlip;
+          ctx.scale(layerFlip, 1);
+
+          const ratio = img.width / img.height;
+          const bs = (t.radius * 2) * layerScale;
+          let w = ratio > 1 ? bs : bs * ratio;
+          let h = ratio > 1 ? bs / ratio : bs;
+
+          ctx.drawImage(img, -w/2, -h/2, w, h);
+          ctx.restore();
+        }
+
+        // contorno seleção/controle
+        const isSel2 = state.selectedId === t.id;
+        if (isSel2 || canControl(t)) {
+          ctx.strokeStyle = isSel2 ? '#3b82f6' : 'rgba(59, 130, 246, 0.3)';
+          ctx.lineWidth = (isSel2?3:1)/state.pan.scale;
+          const s = (t.radius*2) * (t.scale || 1);
+          ctx.strokeRect(-s/2, -s/2, s, s);
+        }
+      } else if (t.shape === 'image' && t.img) {
+
+        const img = getImg(t.img);
+        if (img) {
+          const ratio = img.width / img.height;
+          const bs = t.radius * 2 * scale;
+          let w = ratio > 1 ? bs : bs * ratio, h = ratio > 1 ? bs / ratio : bs;
+          ctx.scale(currentFlip, 1);
+          ctx.drawImage(img, -w/2, -h/2, w, h);
+
+          if (isSel || mine) {
+            ctx.strokeStyle = isSel ? '#3b82f6' : (mine ? 'rgba(59, 130, 246, 0.3)' : 'transparent');
+            ctx.lineWidth = (isSel?3:1)/state.pan.scale;
+            ctx.strokeRect(-w/2, -h/2, w, h);
+          }
+        } else {
+          ctx.fillStyle = t.color;
+          ctx.fillRect(-t.radius*scale, -t.radius*scale, t.radius*2*scale, t.radius*2*scale);
+        }
+      } else {
+        ctx.scale(scale * currentFlip, scale);
+        const s = t.radius * 2;
+        ctx.beginPath();
+        if (t.shape === 'square') ctx.rect(-t.radius, -t.radius, s, s);
+        else ctx.arc(0, 0, t.radius, 0, Math.PI * 2);
+
+        if (t.img) {
+          ctx.save(); ctx.clip();
+          const img = getImg(t.img);
+          if (img) {
+            const sc = Math.max(s/img.width, s/img.height);
+            ctx.drawImage(img, -img.width*sc/2, -img.height*sc/2, img.width*sc, img.height*sc);
+          } else {
+            ctx.fillStyle="#333"; ctx.fill();
+          }
+          ctx.restore();
+        } else {
+          ctx.fillStyle=t.color; ctx.fill();
+        }
+
+        ctx.lineWidth = isSel ? 3 : 1.5;
+        ctx.strokeStyle = isSel ? '#3b82f6' : (mine ? 'rgba(59, 130, 246, 0.5)' : 'rgba(0,0,0,0.6)');
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      if (net.isHost && t.owner && t.owner !== 'all') {
+        ctx.beginPath();
+        ctx.arc(t.x + t.radius, t.y - t.radius, 4, 0, Math.PI*2);
+        ctx.fillStyle = '#10b981';
+        ctx.fill();
+      }
+
+      if (isSel || state.pan.scale > 0.4) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold 13px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.shadowColor="black"; ctx.shadowBlur=4;
+        ctx.fillText(t.label, t.x, t.y + (t.radius * (t.scale||1)) + 18);
+        ctx.shadowBlur=0;
+      }
+    }
+
+    // Régua
+    if (measuring.active) {
+      const mx = measuring.current.x, my = measuring.current.y, sx = measuring.start.x, sy = measuring.start.y;
+      ctx.save();
+      ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2/state.pan.scale; ctx.setLineDash([10, 5]);
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(mx, my); ctx.stroke();
+
+      const dist = Math.hypot(mx-sx, my-sy), meters = (dist/gs * 1.5).toFixed(1) + 'm';
+      const midX = (sx+mx)/2, midY = (sy+my)/2;
+      ctx.font = 'bold 14px sans-serif';
+      const tm = ctx.measureText(meters);
+      ctx.fillStyle = "rgba(0,0,0,0.8)";
+      ctx.fillRect(midX - tm.width/2 - 4, midY - 10, tm.width + 8, 20);
+      ctx.fillStyle = "#10b981";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(meters, midX, midY);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  // --- KEYBOARD (WASD) ---
+  window.addEventListener('keydown', (e) => {
+    if(e.target.tagName === 'INPUT') return;
+    if(keys.hasOwnProperty(e.key) || keys.hasOwnProperty(e.code)) keys[e.key] = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    if(keys.hasOwnProperty(e.key) || keys.hasOwnProperty(e.code)) keys[e.key] = false;
+  });
+
+  // --- INPUT ---
+  ui.tool.addEventListener('change', () => {
+    ui.penControls.style.display = ui.tool.value === 'pen' ? 'flex' : 'none';
+  });
+
+  canvas.addEventListener('mousedown', (e) => {
+    // Ctrl + RMB: rotacionar câmera (em volta do centro do canvas)
+    if (e.ctrlKey && e.button === 2) {
+      dragging = 'rotateView';
+      const rect = canvas.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      rotateDragStartAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+      rotateDragStartRot = state.pan.rot || 0; // radianos
+      lastMouse = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+      return;
+    }
+
+    // ✅ Se estiver em 3D + Shift + RMB: não deixa o 2D roubar o evento
+    if (state.threeOn && e.shiftKey && e.button === 2) return;
+
+    const pos = screenToWorld(e.clientX, e.clientY);
+    lastMouse = { x: e.clientX, y: e.clientY };
+
+    
+  if (dragging === 'rotateView') {
+  const dx = (e.clientX - lastMouse.x);
+
+  const rect = canvas.getBoundingClientRect();
+  const px = (e.clientX - rect.left) * DPR;
+  const py = (e.clientY - rect.top) * DPR;
+
+  const w = screenToWorld(e.clientX, e.clientY);
+  const newRot = state.pan.rot + dx * 0.01; // sensibilidade
+
+  const c = Math.cos(newRot);
+  const s = Math.sin(newRot);
+  const vx = w.x * state.pan.scale;
+  const vy = w.y * state.pan.scale;
+  const rx = vx * c - vy * s;
+  const ry = vx * s + vy * c;
+
+  state.pan.rot = newRot;
+  state.pan.x = px - rx;
+  state.pan.y = py - ry;
+
+  lastMouse = { x: e.clientX, y: e.clientY };
+  draw();
+  return;
+}
+
+    if (ui.tool.value === 'pen') {
+      if (e.button === 0) {
+        drawing.active = true;
+        drawing.currentPath = [{x: pos.x, y: pos.y}];
+      }
+      return;
+    }
+
+    if (ui.tool.value === 'measure') {
+      if (e.button === 0) {
+        const sx = snap(pos.x), sy = snap(pos.y);
+        measuring = { active: true, start: {x:sx,y:sy}, current: {x:sx,y:sy} };
+        draw();
+      }
+      return;
+    }
+
+    const hovered = findTokenAt(pos);
+    if (e.button === 0) {
+      if (hovered) {
+        state.selectedId = hovered.id;
+        if (canControl(hovered)) dragging = hovered; else dragging = null;
+        populateEditor(hovered);
+      } else dragging = 'pan';
+    }
+    if (e.button === 2 && hovered && canControl(hovered)) {
+      state.selectedId = hovered.id; rotating = hovered; populateEditor(hovered);
+    }
+    draw();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    const pos = screenToWorld(e.clientX, e.clientY);
+    const hovered = findTokenAt(pos);
+    const ctrl = hovered && canControl(hovered);
+
+    if (ui.tool.value === 'pen') {
+      document.body.style.cursor = "url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22><circle cx=%228%22 cy=%228%22 r=%224%22 fill=%22red%22 stroke=%22white%22/></svg>') 8 8, auto";
+      if(drawing.active) {
+        drawing.currentPath.push({x: pos.x, y: pos.y});
+        draw();
+      }
+      return;
+    }
+
+    if (ui.tool.value === 'measure') document.body.style.cursor = "crosshair";
+    else if (dragging === 'rotateView') document.body.style.cursor = "grabbing";
+    else if (rotating) document.body.style.cursor = "grabbing";
+    else if (dragging && dragging !== 'pan') document.body.style.cursor = "move";
+    else if (dragging === 'pan') document.body.style.cursor = "grabbing";
+    else if (ctrl) document.body.style.cursor = "pointer";
+    else if (hovered) document.body.style.cursor = "help";
+    else document.body.style.cursor = "default";
+
+    // ✅ rotaciona câmera 2D com Shift+RMB segurado
+    if (dragging === 'rotateView') {
+      const dx = (e.clientX - lastMouse.x);
+
+      const rect = canvas.getBoundingClientRect();
+      const px = (e.clientX - rect.left) * DPR;
+      const py = (e.clientY - rect.top) * DPR;
+
+      const w = screenToWorld(e.clientX, e.clientY);
+      const newRot = state.pan.rot + dx * 0.01; // sensibilidade
+
+      const c = Math.cos(newRot);
+      const s = Math.sin(newRot);
+      const vx = w.x * state.pan.scale;
+      const vy = w.y * state.pan.scale;
+      const rx = vx * c - vy * s;
+      const ry = vx * s + vy * c;
+
+      state.pan.rot = newRot;
+      state.pan.x = px - rx;
+      state.pan.y = py - ry;
+
+      lastMouse = { x: e.clientX, y: e.clientY };
+      draw();
+      return;
+    }
+
+    if (dragging === 'pan') {
+      state.pan.x += (e.clientX - lastMouse.x) * DPR;
+      state.pan.y += (e.clientY - lastMouse.y) * DPR;
+      lastMouse = { x: e.clientX, y: e.clientY };
+      draw();
+    }
+    else if (dragging && typeof dragging === 'object') {
+      let nx = snap(pos.x), ny = snap(pos.y);
+      dragging.x = nx; dragging.y = ny;
+      net.sendMove(dragging); syncThree(); draw();
+    }
+    else if (rotating) {
+      const dx = pos.x - rotating.x, dy = pos.y - rotating.y;
+      let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+      if (e.shiftKey) angle = Math.round(angle / 45) * 45;
+      rotating.rotation = angle;
+      if(state.selectedId === rotating.id) ui.edtRotation.value = Math.round(angle);
+      net.sendMove(rotating); syncThree(); draw();
+    }
+    else if (measuring.active) {
+      let mx = snap(pos.x), my = snap(pos.y);
+      measuring.current = {x:mx, y:my};
+      draw();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if(drawing.active) {
+      const line = {
+        color: ui.penColor.value,
+        width: parseInt(ui.penSize.value),
+        points: drawing.currentPath
+      };
+      if(line.points.length > 1) {
+        state.drawings.push(line);
+        net.sendDrawing(line);
+      }
+      drawing.active = false; drawing.currentPath = [];
+      draw();
+    }
+    dragging = null; rotating = null; lastMouse = null;
+    if(measuring.active) { measuring.active = false; draw(); }
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const pos = screenToWorld(e.clientX, e.clientY);
+    const hovered = findTokenAt(pos);
+
+    if (e.ctrlKey && hovered && canControl(hovered)) {
+      const d = e.deltaY > 0 ? -0.1 : 0.1;
+      let ns = (hovered.scale || 1) + d;
+      ns = Math.max(0.1, Math.min(5, parseFloat(ns.toFixed(1))));
+      hovered.scale = ns;
+      if (state.selectedId === hovered.id) ui.edtScale.value = ns;
+      net.sendMove(hovered); syncThree(); draw();
+    } else {
+      // ✅ zoom respeitando rotação (mantém ponto sob o mouse)
+      const r = canvas.getBoundingClientRect();
+      const px = (e.clientX - r.left) * DPR;
+      const py = (e.clientY - r.top) * DPR;
+
+      const w = screenToWorld(e.clientX, e.clientY);
+
+      const ns = Math.min(
+        Math.max(0.1, state.pan.scale + (e.deltaY > 0 ? -state.pan.scale * 0.1 : state.pan.scale * 0.1)),
+        8
+      );
+
+      const c = Math.cos(state.pan.rot);
+      const s = Math.sin(state.pan.rot);
+
+      const vx = (w.x * ns) * c - (w.y * ns) * s;
+      const vy = (w.x * ns) * s + (w.y * ns) * c;
+
+      state.pan.x = px - vx;
+      state.pan.y = py - vy;
+      state.pan.scale = ns;
+
+      draw();
+    }
+  }, { passive: false });
+
+  ui.btnZoomIn.onclick = () => { state.pan.scale *= 1.2; draw(); };
+  ui.btnZoomOut.onclick = () => { state.pan.scale /= 1.2; draw(); };
+
+  // --- EDITOR LOGIC ---
+
+  // ===== LAYERS SYSTEM =====
+  function ensureLayers(t){
+    if (Array.isArray(t.layers) && t.layers.length) return;
+    t.layers = [{
+      id: 'base',
+      name: 'Corpo',
+      img: t.img || null,
+      visible: true,
+      z: 0,
+      ox: 0, oy: 0,
+      rot: 0,
+      scale: 1,
+      opacity: 1,
+      flipX: false
+    }];
+    // não ativa automaticamente; evita mudar tokens antigos sem querer
+    if (typeof t.useLayers === 'undefined') t.useLayers = false;
+  }
+
+  function uid(prefix='L'){
+    return prefix + Math.random().toString(36).slice(2, 9);
+  }
+
+  function getLayer(t, id){
+    ensureLayers(t);
+    return t.layers.find(l => l.id === id);
+  }
+
+  let layersDebounce = 0;
+  function commitLayers(){
+    clearTimeout(layersDebounce);
+    layersDebounce = setTimeout(()=>{
+      updateTokensList(); syncThree(); draw();
+      if (net.isHost) net.broadcastFullState();
+    }, 80);
+  }
+
+  function clamp01(v){
+    v = parseFloat(v);
+    if (Number.isNaN(v)) return 1;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  function renderLayersEditor(t){
+    ensureLayers(t);
+
+    const canEdit = net.isHost && canControl(t);
+    ui.edtUseLayers.checked = !!t.useLayers;
+    ui.layersPanel.style.display = t.useLayers ? 'block' : 'none';
+    ui.layersList.innerHTML = '';
+
+    if (!t.useLayers) return;
+
+    const layers = [...t.layers].sort((a,b)=> (a.z||0)-(b.z||0));
+    for (const L of layers){
+      const row = document.createElement('div');
+      row.style.border = '1px solid var(--border)';
+      row.style.borderRadius = '10px';
+      row.style.padding = '8px';
+      row.style.background = 'rgba(15,23,42,0.6)';
+
+      row.innerHTML = `
+        <div class="form-row spread" style="align-items:center; gap:8px">
+          <input data-k="name" class="full" type="text" value="${(L.name||'').replace(/"/g,'&quot;')}" placeholder="Nome da camada" style="flex:1"/>
+          <label style="display:flex; align-items:center; gap:6px; margin:0">
+            <input data-k="visible" type="checkbox" ${L.visible ? 'checked':''}/>
+            <span>Visível</span>
+          </label>
+          <button data-act="remove" title="Remover" style="padding:4px 8px; border-color:var(--danger); color:var(--danger); background:transparent">✕</button>
+        </div>
+
+        <div class="form-row spread" style="gap:10px; align-items:flex-end; flex-wrap:wrap">
+          <label>Z<br><input data-k="z" type="number" step="1" value="${L.z||0}" style="width:70px"/></label>
+          <label>OffX<br><input data-k="ox" type="number" step="1" value="${L.ox||0}" style="width:70px"/></label>
+          <label>OffY<br><input data-k="oy" type="number" step="1" value="${L.oy||0}" style="width:70px"/></label>
+          <label>Rot<br><input data-k="rot" type="number" step="5" value="${L.rot||0}" style="width:70px"/></label>
+          <label>Esc<br><input data-k="scale" type="number" step="0.1" value="${(typeof L.scale==='number')?L.scale:1}" style="width:70px"/></label>
+          <label>Opac<br><input data-k="opacity" type="number" min="0" max="1" step="0.05" value="${(typeof L.opacity==='number')?L.opacity:1}" style="width:70px"/></label>
+          <label style="display:flex; align-items:center; gap:6px; margin-bottom:2px">
+            <input data-k="flipX" type="checkbox" ${L.flipX ? 'checked':''}/>
+            <span>Flip</span>
+          </label>
+          <div style="flex:1; min-width:220px">
+            <label>Imagem</label>
+            <input data-act="img" type="file" accept="image/*" class="full" style="font-size:10px" />
+          </div>
+        </div>
+      `;
+
+      // disable inputs if can't edit
+      if (!canEdit){
+        row.querySelectorAll('input,button').forEach(el=>{
+          if (el.dataset.act === 'img') el.disabled = true;
+          if (el.dataset.act === 'remove') el.disabled = true;
+          if (el.dataset.k) el.disabled = true;
+        });
+      }
+
+      // bind changes
+      row.addEventListener('input', (ev)=>{
+        const el = ev.target;
+        if (!el.dataset.k) return;
+        const k = el.dataset.k;
+
+        if (k === 'name') L.name = el.value;
+        else if (k === 'z') L.z = parseInt(el.value||'0', 10);
+        else if (k === 'ox') L.ox = parseFloat(el.value||'0');
+        else if (k === 'oy') L.oy = parseFloat(el.value||'0');
+        else if (k === 'rot') L.rot = parseFloat(el.value||'0');
+        else if (k === 'scale') L.scale = parseFloat(el.value||'1');
+        else if (k === 'opacity') L.opacity = clamp01(el.value);
+        commitLayers();
+      });
+
+      row.addEventListener('change', (ev)=>{
+        const el = ev.target;
+        if (el.dataset.k === 'visible') { L.visible = !!el.checked; commitLayers(); }
+        if (el.dataset.k === 'flipX') { L.flipX = !!el.checked; commitLayers(); }
+
+        if (el.dataset.act === 'img'){
+          const file = el.files && el.files[0];
+          if (!file) return;
+          handleImageUpload(file, (res)=>{
+            L.img = res;
+            // se for a base, também atualiza o preview antigo
+            if (L.id === 'base'){
+              ui.edtPreview.src = res;
+              ui.edtPreview.style.display = 'block';
+            }
+            commitLayers();
+          });
+          el.value = '';
+        }
+      });
+
+      row.querySelector('[data-act="remove"]').onclick = ()=>{
+        if (!canEdit) return;
+        t.layers = t.layers.filter(x => x.id !== L.id);
+        // garante que exista base
+        if (!t.layers.some(x => x.id === 'base')){
+          t.layers.unshift({id:'base', name:'Corpo', img:null, visible:true, z:0, ox:0, oy:0, rot:0, scale:1, opacity:1, flipX:false});
+        }
+        renderLayersEditor(t);
+        commitLayers();
+      };
+
+      ui.layersList.appendChild(row);
+    }
+  }
+
+  // UI handlers (layers)
+  ui.edtUseLayers.onchange = ()=>{
+    const t = state.tokens.find(k => k.id === state.selectedId);
+    if (!t) return;
+    ensureLayers(t);
+    if (!net.isHost || !canControl(t)) { ui.edtUseLayers.checked = !!t.useLayers; return; }
+
+    t.useLayers = !!ui.edtUseLayers.checked;
+    if (t.useLayers) t.shape = 'image';
+    renderLayersEditor(t);
+    commitLayers();
+  };
+
+  ui.layerAdd.onclick = ()=>{
+    const t = state.tokens.find(k => k.id === state.selectedId);
+    if (!t) return;
+    if (!net.isHost || !canControl(t)) return;
+    ensureLayers(t);
+    t.useLayers = true;
+    ui.edtUseLayers.checked = true;
+    ui.layersPanel.style.display = 'block';
+
+    t.layers.push({
+      id: uid('layer_'),
+      name: 'Nova Camada',
+      img: null,
+      visible: true,
+      z: (t.layers.reduce((m,l)=>Math.max(m, l.z||0), 0) + 10),
+      ox: 0, oy: 0,
+      rot: 0,
+      scale: 1,
+      opacity: 1,
+      flipX: false
+    });
+    renderLayersEditor(t);
+    commitLayers();
+  };
+
+  ui.layerQuickProne.onclick = ()=>{
+    const t = state.tokens.find(k => k.id === state.selectedId);
+    if (!t) return;
+    if (!net.isHost || !canControl(t)) return;
+    ensureLayers(t);
+    t.useLayers = true;
+    ui.edtUseLayers.checked = true;
+    ui.layersPanel.style.display = 'block';
+
+    let p = getLayer(t, 'prone');
+    if (!p){
+      // usa a imagem da base como prone por padrão
+      const base = getLayer(t, 'base');
+      p = { id:'prone', name:'Caído', img: base ? base.img : null, visible:true, z: 50, ox:0, oy:0, rot:90, scale:1, opacity:1, flipX:false };
+      t.layers.push(p);
+    } else {
+      p.visible = !p.visible;
+      if (!p.rot && p.visible) p.rot = 90;
+    }
+    renderLayersEditor(t);
+    commitLayers();
+  };
+  // ===== END LAYERS SYSTEM =====
+
+  function populateEditor(t) {
+    ensureLayers(t);
+    edtImgData = null;
+    ui.edtImage.value = '';
+
+    ui.editor.style.display = 'block';
+    ui.edtLabel.value = t.label;
+    ui.edtRadius.value = Math.round(t.radius/DPR);
+    ui.edtColor.value = t.color;
+    ui.edtShape.value = t.shape || 'circle';
+    ui.edtRotation.value = Math.round(t.rotation||0);
+    ui.edtScale.value = t.scale||1;
+
+    ui.edtPreview.src = t.img||'';
+    ui.edtPreview.style.display = t.img?'block':'none';
+    ui.edtPreview.style.transform = t.flipX ? "scaleX(-1)" : "scaleX(1)";
+
+    ui.edtOwner.value = t.owner || '';
+    ui.edtOwner.disabled = !net.isHost;
+
+    // layers
+    renderLayersEditor(t);
+  }
+
+  ui.edtApply.onclick = () => {
+    if(!net.isHost) return;
+    const t = state.tokens.find(k => k.id === state.selectedId);
+    if(!t) return;
+
+    t.label = ui.edtLabel.value;
+    t.radius = parseFloat(ui.edtRadius.value)*DPR;
+    t.color = ui.edtColor.value;
+    t.shape = ui.edtShape.value;
+    ensureLayers(t);
+    if (t.useLayers) t.shape = 'image';
+    t.owner = ui.edtOwner.value;
+
+    if (edtImgData) {
+      if (t.useLayers) {
+        ensureLayers(t);
+        const base = getLayer(t,'base');
+        if (base) base.img = edtImgData;
+      } else {
+        t.img = edtImgData;
+      }
+    }
+
+    updateTokensList(); syncThree(); draw();
+    net.broadcastFullState();
+  };
+
+  ui.edtImage.addEventListener('change', (e) => handleImageUpload(e.target.files[0], (res) => {
+    edtImgData = res;
+    ui.edtPreview.src = res;
+    ui.edtPreview.style.display = 'block';
+    ui.edtShape.value = 'image';
+  }));
+
+  ui.edtFlip.onclick = () => {
+    const t = state.tokens.find(k => k.id === state.selectedId);
+    if(!t || !canControl(t)) return;
+    t.flipX = !t.flipX;
+    ui.edtPreview.style.transform = t.flipX ? "scaleX(-1)" : "scaleX(1)";
+    syncThree(); net.sendMove(t);
+    if (net.isHost) net.broadcastFullState();
+  };
+
+  ui.edtDelete.onclick = () => {
+    if(!net.isHost) return;
+    state.tokens = state.tokens.filter(t => t.id !== state.selectedId);
+    state.selectedId=null;
+    ui.editor.style.display='none';
+    updateTokensList(); syncThree(); draw();
+    net.broadcastFullState();
+  };
+
+  ui.edtClose.onclick = () => { ui.editor.style.display='none'; state.selectedId=null; draw(); updateTokensList(); };
+
+  ui.clearDrawings.onclick = () => {
+    if(!net.isHost) return;
+    if(confirm('Limpar todos os desenhos?')) {
+      state.drawings = [];
+      draw();
+      net.broadcastFullState();
+    }
+  };
+
+  ui.genImage.addEventListener('change', (e) => handleImageUpload(e.target.files[0], (res) => {
+    genImgData = res;
+    ui.genPreview.src = res;
+    ui.genPreview.style.display='block';
+  }));
+
+  ui.genCreate.onclick = () => {
+    if(!net.isHost) return;
+    const t = {
+      id: 't' + Date.now(),
+      label: ui.genLabel.value || 'Token',
+      x: (canvas.width/2 - state.pan.x)/state.pan.scale,
+      y: (canvas.height/2 - state.pan.y)/state.pan.scale,
+      radius: parseFloat(ui.genRadius.value) * DPR,
+      color: ui.genColor.value,
+      shape: ui.genShape.value,
+      img: genImgData,
+      rotation: 0,
+      scale: 1,
+      flipX: false,
+      owner: ''
+    };
+    t.x = snap(t.x); t.y = snap(t.y);
+    // layers init
+    ensureLayers(t);
+    // mantém compat: img antiga também fica na base
+    const base = getLayer(t,'base');
+    if (base && t.img) base.img = t.img;
+
+    state.tokens.push(t);
+
+    ui.genLabel.value='';
+    ui.genImage.value='';
+    ui.genPreview.style.display='none';
+    genImgData=null;
+
+    updateTokensList(); syncThree(); draw();
+    net.broadcastFullState();
+  };
+
+  ui.mapFile.addEventListener('change', (e) => handleImageUpload(e.target.files[0], (src) => {
+    if(!net.isHost) return;
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      state.map = { img, imgSource: src, scale: 1, x: 0, y: 0 };
+      ui.mapControls.style.display = 'block';
+      draw();
+      net.broadcastFullState();
+    };
+  }));
+
+    ui.clearMap.onclick = () => {
+    if(!net.isHost) return;
+    if(!state.map.img && !state.map.imgSource) return;
+
+    state.map = { img: null, imgSource: null, x: 0, y: 0, scale: 1 };
+    ui.mapControls.style.display = 'none';
+    ui.mapScale.value = 1;
+    ui.mapX.value = 0;
+    ui.mapY.value = 0;
+    ui.mapFile.value = '';
+
+    draw();
+    net.broadcastFullState();
+  };
+
+  const updateMap = () => {
+    state.map.scale = parseFloat(ui.mapScale.value);
+    state.map.x = parseFloat(ui.mapX.value||0)*DPR;
+    state.map.y = parseFloat(ui.mapY.value||0)*DPR;
+    draw();
+
+    if(net.isHost) {
+      clearTimeout(window.mapT);
+      window.mapT = setTimeout(() => net.broadcastFullState(), 250);
+    }
+  };
+  ui.mapScale.oninput = updateMap;
+  ui.mapX.oninput = updateMap;
+  ui.mapY.oninput = updateMap;
+
+  function updateTokensList() {
+    ui.tokensList.innerHTML = '';
+    state.tokens.forEach(t => {
+      const d = document.createElement('div');
+      d.className = 'token-item ' + (state.selectedId===t.id?'selected':'');
+      d.innerHTML = `<div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:24px;height:24px;border-radius:${t.shape==='circle'?'50%':'2px'};background:${t.color};overflow:hidden;border:1px solid #555;">
+          ${t.img ? `<img src="${t.img}" style="width:100%;height:100%;object-fit:cover">` : ''}
+        </div>
+        <span style="font-weight:bold; font-size:12px;">${t.label}</span>
+      </div>`;
+      d.onclick = () => {
+        state.selectedId = t.id;
+        state.pan.x = -t.x * state.pan.scale + canvas.width/2;
+        state.pan.y = -t.y * state.pan.scale + canvas.height/2;
+        populateEditor(t);
+        updateTokensList();
+        draw();
+      };
+      ui.tokensList.appendChild(d);
+    });
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    let nd = false;
+
+    const speed = 10 * DPR;
+    if (keys.w || keys.ArrowUp) { state.pan.y += speed; nd=true; }
+    if (keys.s || keys.ArrowDown) { state.pan.y -= speed; nd=true; }
+    if (keys.a || keys.ArrowLeft) { state.pan.x += speed; nd=true; }
+    if (keys.d || keys.ArrowRight) { state.pan.x -= speed; nd=true; }
+
+    state.tokens.forEach(t => {
+      const trg = t.flipX ? -1 : 1;
+      if (typeof t.visualFlip === 'undefined') t.visualFlip = trg;
+      if (Math.abs(t.visualFlip - trg) > 0.01) { t.visualFlip += (trg - t.visualFlip) * 0.15; nd = true; }
+      else if (t.visualFlip !== trg) { t.visualFlip = trg; nd = true; }
+    });
+
+    if (nd) draw();
+
+    if(state.threeOn && renderer) {
+      if (controls) controls.update();
+      renderer.render(scene, camera);
+    }
+  }
+
+  // ---------------- 3D ----------------
+  let renderer, scene, camera, controls;
+  const threeMap = new Map();
+
+  ui.toggle3d.onclick = () => {
+    state.threeOn = !state.threeOn;
+    ui.toggle3d.style.background = state.threeOn ? "#10b981" : "";
+    const c = document.getElementById('three-container');
+    c.style.pointerEvents = state.threeOn ? 'all' : 'none';
+    c.style.zIndex = state.threeOn ? 50 : 1;
+    if(state.threeOn && !renderer) initThree();
+  };
+
+  function initThree() {
+    const c = document.getElementById('three-container');
+
+    renderer = new THREE.WebGLRenderer({alpha:true, antialias:true});
+    renderer.setSize(c.clientWidth, c.clientHeight);
+    renderer.shadowMap.enabled = true;
+    c.appendChild(renderer.domElement);
+
+    // evita menu de contexto no canvas 3D
+    renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+
+    scene = new THREE.Scene();
+
+    camera = new THREE.PerspectiveCamera(45, c.clientWidth/c.clientHeight, 1, 10000);
+    camera.position.set(0, 500, 500);
+
+    // ✅ OrbitControls configurado para rotacionar com RIGHT
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.mouseButtons = {
+      LEFT: null,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE
+    };
+    controls.enableRotate = false;  // só liga com Shift+RMB
+    controls.enablePan = false;
+    controls.enableZoom = true;
+
+    // Luzes + sombras
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+
+    const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+    sun.position.set(300, 600, 200);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 2000;
+    sun.shadow.camera.left = -800;
+    sun.shadow.camera.right = 800;
+    sun.shadow.camera.top = 800;
+    sun.shadow.camera.bottom = -800;
+    scene.add(sun);
+
+    const floorGeo = new THREE.PlaneGeometry(5000, 5000);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI/2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    scene.add(new THREE.GridHelper(2000, 40, 0x444444, 0x222222));
+
+    // ✅ Shift + RMB = habilita rotação
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      if (!state.threeOn) return;
+      if (e.shiftKey && e.button === 2) {
+        controls.enableRotate = true;
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+    if (dragging === 'rotateView') {
+      dragging = null;
+      e.preventDefault();
+      return;
+    }
+
+      if(!controls) return;
+      if (e.button === 2) controls.enableRotate = false;
+    });
+
+    syncThree();
+  }
+
+  function syncThree() {
+    if(!scene) return;
+
+    threeMap.forEach((m,id) => {
+      if(!state.tokens.find(t=>t.id===id)) {
+        scene.remove(m);
+        threeMap.delete(id);
+      }
+    });
+
+    state.tokens.forEach(t => {
+      let m = threeMap.get(t.id);
+      if(!m) {
+        const geo = (t.shape==='square'||t.shape==='image')
+          ? new THREE.BoxGeometry(1,1,1)
+          : new THREE.CylinderGeometry(0.5,0.5,0.2,32);
+
+        m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color: t.color, transparent:true}));
+        m.castShadow = true;
+        m.receiveShadow = true;
+
+        scene.add(m);
+        threeMap.set(t.id, m);
+      }
+
+      m.position.set(t.x/DPR, 5, t.y/DPR);
+      m.rotation.y = -t.rotation * (Math.PI/180);
+
+      const s = t.scale||1, size = (t.radius/DPR)*2*s, flip = t.flipX ? -1 : 1;
+
+      if (t.shape === 'image' && t.img && m.userData.texImg !== t.img) {
+        new THREE.TextureLoader().load(t.img, (tex) => {
+          m.material.map = tex;
+          m.material.needsUpdate = true;
+          m.userData.texImg = t.img;
+          const r = tex.image.width / tex.image.height;
+          if(r > 1) m.scale.set(size * flip, 1, size/r);
+          else m.scale.set(size*r * flip, 1, size);
+        });
+      } else if (t.shape !== 'image') {
+        m.scale.set(size * flip, 10, size);
+      } else if (t.shape === 'image') {
+        m.scale.set(Math.abs(m.scale.x)*flip, m.scale.y, m.scale.z);
+      }
+
+      if (t.shape !== 'image') {
+        m.material.color.set(t.color);
+      }
+    });
+  }
+
+  function onThreeResize() {
+    if(camera){
+      camera.aspect = viewport.clientWidth/viewport.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+    }
+  }
+
+  // painel
+  document.getElementById('panel-toggle').onclick = (e) => {
+    const p = document.getElementById('panel');
+    p.classList.toggle('hidden');
+    e.target.innerHTML = p.classList.contains('hidden') ? '⚙' : '☰';
+  };
+
+  ui.gridSize.onchange = () => {
+    if(net.isHost) {
+      state.gridSize = parseInt(ui.gridSize.value);
+      draw();
+      net.broadcastFullState();
+    }
+  };
+
+  animate();
+  resize();
+</script>
+
+</body>
+</html>
